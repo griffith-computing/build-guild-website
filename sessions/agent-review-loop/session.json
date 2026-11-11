@@ -1,0 +1,18 @@
+{
+  "$schema": "../../schemas/session.json",
+  "id": "agent-review-loop",
+  "title": "Design a bounded agent task",
+  "summary": "An idea for exploring task boundaries, approval checkpoints, and evidence when delegating a small change to a coding agent.",
+  "status": "idea",
+  "type": "discussion",
+  "level": "intermediate",
+  "durationMinutes": 45,
+  "audience": ["Developers", "Technical leads"],
+  "tags": ["copilot", "agents", "review"],
+  "prerequisites": ["Familiarity with code review"],
+  "objectives": ["Define explicit task boundaries", "Identify actions requiring human approval", "Choose evidence needed before accepting an agent's result"],
+  "resources": [
+    { "label": "GitHub Copilot concepts", "url": "https://docs.github.com/en/copilot/concepts" }
+  ],
+  "sources": []
+}

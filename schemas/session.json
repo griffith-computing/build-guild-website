@@ -1,0 +1,22 @@
+{
+  "$id": "session.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "summary", "status", "type", "level", "durationMinutes", "audience", "tags", "prerequisites", "objectives", "resources"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": { "$ref": "common.json#/definitions/id" },
+    "title": { "$ref": "common.json#/definitions/text" },
+    "summary": { "$ref": "common.json#/definitions/text" },
+    "status": { "enum": ["idea", "ready"] },
+    "type": { "$ref": "common.json#/definitions/type" },
+    "level": { "enum": ["beginner", "intermediate", "advanced"] },
+    "durationMinutes": { "type": "integer", "minimum": 5, "maximum": 480 },
+    "audience": { "$ref": "common.json#/definitions/texts", "minItems": 1 },
+    "tags": { "$ref": "common.json#/definitions/texts", "minItems": 1 },
+    "prerequisites": { "$ref": "common.json#/definitions/texts" },
+    "objectives": { "$ref": "common.json#/definitions/texts", "minItems": 1 },
+    "resources": { "$ref": "common.json#/definitions/resources" },
+    "sources": { "$ref": "common.json#/definitions/resources" }
+  }
+}

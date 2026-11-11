@@ -1,0 +1,40 @@
+{
+  "$id": "guild.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "description", "intro", "cadence", "timeZone"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "name": { "$ref": "common.json#/definitions/text" },
+    "description": { "$ref": "common.json#/definitions/text" },
+    "intro": { "$ref": "common.json#/definitions/text" },
+    "cadence": { "$ref": "common.json#/definitions/text" },
+    "timeZone": { "$ref": "common.json#/definitions/text" },
+    "example": { "type": "boolean" },
+    "accent": { "enum": ["violet", "teal", "blue"] },
+    "links": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "registration": { "$ref": "common.json#/definitions/text" },
+        "community": { "$ref": "common.json#/definitions/text" },
+        "suggestTopic": { "$ref": "common.json#/definitions/text" },
+        "volunteer": { "$ref": "common.json#/definitions/text" },
+        "contribute": { "$ref": "common.json#/definitions/text" }
+      }
+    },
+    "organizers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "role"],
+        "properties": {
+          "name": { "$ref": "common.json#/definitions/text" },
+          "role": { "$ref": "common.json#/definitions/text" },
+          "url": { "$ref": "common.json#/definitions/text" }
+        }
+      }
+    }
+  }
+}

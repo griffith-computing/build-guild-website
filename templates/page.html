@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en" data-accent="{{accent}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="{{description}}">
+  <title>{{title}}</title>
+  <link rel="stylesheet" href="{{root}}assets/site.css">
+  <script type="module" src="{{root}}assets/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header shell">
+    <a class="brand" href="{{root}}index.html"><span class="brand-icon" aria-hidden="true">B<span>G</span></span><span>{{name}}<small>A community for builders</small></span></a>
+    <nav aria-label="Primary">
+      <a href="{{root}}index.html#events">Events</a>
+      <a href="{{root}}index.html#catalog">Session kits</a>
+      <a href="{{root}}index.html#about">About</a>
+      <button id="theme" type="button" hidden>Theme: system</button>
+    </nav>
+  </header>
+  <main id="main" class="shell" tabindex="-1">{{body}}</main>
+  <footer class="shell site-footer">
+    <p>Learn locally. Share what works. Build together.</p>
+    <p>Original session material: <a href="{{root}}licenses/LICENSE-CONTENT.txt">CC BY 4.0</a>. Website code: <a href="{{root}}licenses/LICENSE">MIT</a>. External resources retain their own licenses.</p>
+  </footer>
+</body>
+</html>
