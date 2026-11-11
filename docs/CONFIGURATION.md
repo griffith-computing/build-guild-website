@@ -1,73 +1,58 @@
-# Configuration and data rules
+# Configuration and content contract
 
-JSON Schemas in `schemas` support editor hints; `npm run validate` additionally checks references, dates, links, Markdown, and local files. Unknown metadata properties are errors rather than ignored settings.
+`npm run validate` checks Guild configuration, YAML front matter, Markdown sections, dates, links, and referenced assets. Invalid content fails with its file/field rather than silently disappearing.
 
-## Guild configuration
+## Guild-wide settings
 
-Required `guild.json` fields: `name`, `description`, `intro`, `cadence`, and `timeZone`. Use a real IANA zone such as `America/New_York`, `America/Los_Angeles`, or `Etc/UTC`. Cadence is display text, not a recurrence rule; event timestamps are authoritative.
+`guild.json` contains required `name`, `description`, `intro`, `cadence`, and `timeZone` fields. Use an IANA zone such as `America/New_York`, `America/Los_Angeles`, or `Etc/UTC`. Cadence is display text, not a recurrence rule.
 
-Optional fields:
+Optional settings:
 
 | Field | Values |
 | --- | --- |
-| `example` | Boolean; `true` displays the template-preview banner |
+| `example` | Boolean; displays a sample-Guild notice when true |
 | `accent` | `violet` (default), `teal`, or `blue` |
-| `links` | Optional `registration`, `community`, `suggestTopic`, `volunteer`, `contribute` HTTPS URLs |
+| `links` | Optional `registration`, `community`, `suggestTopic`, `volunteer` HTTPS URLs |
 | `organizers` | Array of `{ "name": "...", "role": "...", "url": "https://..." }`; URL optional |
-| `$schema` | Editor-only schema reference |
+| `$schema` | Editor-only reference to the Guild JSON Schema |
 
-Leave optional links absent rather than using placeholder URLs. Organizer names are opt-in public information; no headshots or personal details are provided by the starter.
+Omitted options do not render. Do not put placeholder links or unapproved personal information into a live Guild configuration.
 
-## Session metadata
+## Session Markdown
 
-Each `sessions\<id>` directory contains `session.json` and a nonempty `README.md`. The ID must match its directory and use lowercase letters/digits separated by single hyphens.
+Each `content\sessions\<slug>` directory contains `index.md` and optional `assets`. The slug must use lowercase letters/digits separated by single hyphens. No sessions is also valid.
 
-Required fields:
+Start `index.md` with YAML between two `---` lines. Use these front-matter fields:
 
 | Field | Contract |
 | --- | --- |
-| `id`, `title`, `summary` | Stable ID and nonblank display text |
-| `status` | `idea` or `ready` |
-| `type` | `workshop`, `deep-dive`, `showcase`, or `discussion` |
-| `level` | `beginner`, `intermediate`, or `advanced` |
-| `durationMinutes` | Integer from 5 through 480 |
-| `audience`, `tags`, `objectives` | Nonempty arrays of unique nonblank strings |
-| `prerequisites` | Array of unique strings; may be empty |
-| `resources` | Array of `{ "label": "...", "url": "..." }`; may be empty |
+| `title`, `summary` | Required nonblank public text |
+| `startsAt`, `endsAt` | Required full timestamps with seconds and explicit UTC offsets; end after start |
+| `type` | Optional `session`, `workshop`, `deep-dive`, `showcase`, or `discussion`; omitted means `session` |
+| `tags` | Optional array of unique nonblank strings |
+| `example` | Optional boolean labeling sample sessions |
+| `links` | Optional `registration`, `recording`, `slides`, `demo` HTTPS URLs |
 
-Optional `sources` uses the same label/URL shape for HTTPS provenance/adaptation links. Preserve attribution in the Markdown guide too, so credit travels when the folder is copied.
+Quote timestamps: `"2027-04-14T13:00:00-04:00"` or `"2027-04-14T17:00:00Z"`. Choose the actual date's offset, including daylight saving time. The Guild time zone controls display, not the timestamp's instant.
 
-## Event records
+Unknown fields, duplicate YAML keys, custom tags, aliases, malformed front matter, invalid calendar dates, and manually authored status fields are rejected. There are no separate session JSON, event JSON, or kit references.
 
-One JSON file per event in `events`, with `id` matching its filename (without `.json`). Delete all records to show the unscheduled empty state; kits do not require events.
+## Markdown sections
 
-```json
-{
-  "$schema": "../schemas/event.json",
-  "id": "context-april",
-  "origin": "guild",
-  "sessionId": "copilot-context",
-  "startsAt": "2027-04-14T13:00:00-04:00",
-  "endsAt": "2027-04-14T14:00:00-04:00",
-  "links": {
-    "registration": "https://example.org/register",
-    "notes": "https://example.org/notes"
-  }
-}
-```
+Use top-level `## Agenda` for the upcoming session's nonempty high-level agenda. Historical sessions do not require one.
 
-Guild events inherit title, summary, type, and tags from their ready kit; do not duplicate those fields. Each occurrence may set `registration`, `recording`, `notes`, `slides`, and `demo` HTTPS links. Links are optional. `example: true` explicitly labels sample events.
+Use optional `## Meeting minutes` for public notes. Empty minutes headings do not render or create a minutes link. Include each reserved section at most once. Section names are case-insensitive; a section ends at the next top-level level-one or level-two heading. Headings inside code blocks or block quotes do not act as reserved sections.
 
-External events use `origin: "external"` with `title`, `summary`, `type`, `tags`, and `links.registration` instead of `sessionId`. They are clearly labeled and sorted alongside Guild events. They do not imply endorsement or confer reuse rights.
+Other Markdown sections are rendered on the detail page. All content is public; committing minutes before a meeting ends also publishes them. Search includes public title, summary, type, tags, and Markdown text.
 
-Use full `YYYY-MM-DDTHH:mm:ssZ` or `YYYY-MM-DDTHH:mm:ss+/-HH:mm` timestamps, with end after start. Invalid calendar dates fail validation. Choose the correct offset for the actual date, including daylight saving time. The configured time zone changes display, not the timestamp's instant.
+Raw HTML is shown as text, not executed. Headings, lists, tables, code fences, quotes, and links are supported. Link targets must be absolute HTTPS URLs or session-local `assets/` paths. Inline images must be local PNG, JPEG, GIF, or WebP files. Authored heading-anchor and cross-session links are not supported; the builder generates its own minutes anchor.
 
-## Markdown and assets
+## Assets and publishing
 
-Raw HTML in Markdown is displayed as text, not executed. Standard headings, lists, tables, code fences, quotes, and links are supported. Link targets must be absolute HTTPS URLs or kit-local `assets/` paths. Inline images must be kit-local PNG, JPEG, GIF, or WebP assets. Heading-anchor and arbitrary cross-file Markdown links are not supported.
+Paths use forward slashes as URL separators, including on Windows, with safe letters/digits/underscores/hyphens and one of these extensions: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.pdf`, `.txt`, `.md`, `.json`, `.csv`, `.ipynb`. No traversal, encoded paths, spaces, HTML/SVG, or symbolic links. Files must exist. HTTPS links cannot contain credentials, whitespace, or backslashes.
 
-Local paths use forward slashes as URL separators (including on Windows), safe letters/digits/underscores/hyphens, and these extensions: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.pdf`, `.txt`, `.md`, `.json`, `.csv`, `.ipynb`. No traversal, encoded paths, spaces, HTML/SVG, or symbolic links. Files must exist. HTTPS links cannot contain credentials, whitespace, or backslashes.
+Only directly referenced assets are copied. Linked Markdown assets are downloads, not recursively rendered pages. Review contributed assets yourself; the builder does not scan PDF/notebook contents for secrets.
 
-Only assets directly referenced by guide links/images or metadata resources are published. A referenced Markdown asset is a downloadable document, not another rendered page; do not depend on nested asset links being discovered automatically. Review contributed assets yourself: the builder does not inspect PDFs/notebooks or scan files for secrets.
+Only generated HTML, shared assets, referenced public attachments, and license files are published. Raw session source/front matter is not automatically copied into `dist`. Do not rely on that exclusion to protect sensitive repository content.
 
-Published metadata omits the repository-relative `$schema` editor hint so downloaded kits remain portable. Keep the Markdown and metadata together, and download referenced assets too.
+Upcoming sessions sort earliest first and past sessions newest first. A session remains upcoming until its end time. Classification uses one build-time clock and remains unchanged until the next successful content/code build or manual deployment; no scheduled refresh or browser-only reclassification is added.

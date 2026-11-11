@@ -3,17 +3,7 @@
   "definitions": {
     "text": { "type": "string", "minLength": 1, "pattern": "\\S" },
     "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
-    "type": { "enum": ["workshop", "deep-dive", "showcase", "discussion"] },
-    "texts": { "type": "array", "items": { "$ref": "#/definitions/text" }, "uniqueItems": true },
-    "resource": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["label", "url"],
-      "properties": {
-        "label": { "$ref": "#/definitions/text" },
-        "url": { "$ref": "#/definitions/text" }
-      }
-    },
-    "resources": { "type": "array", "items": { "$ref": "#/definitions/resource" } }
+    "type": { "enum": ["session", "workshop", "deep-dive", "showcase", "discussion"] },
+    "texts": { "type": "array", "items": { "$ref": "#/definitions/text" }, "uniqueItems": true }
   }
 }

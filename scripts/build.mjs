@@ -2,7 +2,7 @@ import { readFile, mkdir, writeFile, copyFile, rm, rename, lstat } from 'node:fs
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadContent } from './content.mjs';
-import { home, kit, page } from './render.mjs';
+import { home, sessionPage, page } from './render.mjs';
 
 const projectRoot = fileURLToPath(new URL('../', import.meta.url));
 
@@ -35,13 +35,8 @@ export async function build({ root = projectRoot, now = new Date(), validateOnly
     for (const session of content.sessions) {
       const directory = path.join(stage, 'sessions', session.id);
       await mkdir(directory, { recursive: true });
-      await writeFile(path.join(directory, 'index.html'), page(template, content, kit(session), `${session.title} | ${content.guild.name}`, '../../'));
-      await writeFile(path.join(directory, 'README.md'), session.body.source);
-      const { directory: sourceDirectory, body, assets, ...metadata } = session;
-      // The downloadable metadata is portable; the repository-relative editor schema is not.
-      delete metadata.$schema;
-      await writeFile(path.join(directory, 'session.json'), `${JSON.stringify(metadata, null, 2)}\n`);
-      for (const [relative, source] of assets) {
+      await writeFile(path.join(directory, 'index.html'), page(template, content, sessionPage(session, content.guild), `${session.title} | ${content.guild.name}`, '../../'));
+      for (const [relative, source] of session.assets) {
         const destination = path.join(directory, ...relative.split('/'));
         await mkdir(path.dirname(destination), { recursive: true });
         await copyFile(source, destination);
@@ -69,7 +64,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const args = process.argv.slice(2);
     if (args.some(arg => arg !== '--validate')) throw new Error('Usage: node scripts/build.mjs [--validate]');
     const result = await build({ validateOnly: args.includes('--validate') });
-    console.log(`${args.includes('--validate') ? 'Validated' : 'Built dist:'} ${result.sessions.length} kits, ${result.events.length} events for ${result.guild.name}`);
+    console.log(`${args.includes('--validate') ? 'Validated' : 'Built dist:'} ${result.sessions.length} sessions for ${result.guild.name}`);
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;

@@ -5,6 +5,7 @@ for (const collection of document.querySelectorAll('[data-collection]')) {
   const counter = collection.querySelector('[role="status"]');
   const empty = collection.querySelector('[data-no-results]');
   const cards = [...collection.querySelectorAll('[data-card]')];
+  if (!form) continue;
   const apply = () => {
     const filters = Object.fromEntries(new FormData(form));
     let count = 0;
@@ -13,7 +14,7 @@ for (const collection of document.querySelectorAll('[data-collection]')) {
       card.hidden = !visible;
       if (visible) count++;
     }
-    counter.textContent = `${count} of ${cards.length} ${collection.id === 'catalog' ? 'kits' : 'events'} shown`;
+    counter.textContent = `${count} of ${cards.length} sessions shown`;
     empty.hidden = count !== 0 || cards.length === 0;
   };
   form.hidden = false;

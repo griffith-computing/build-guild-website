@@ -1,30 +1,27 @@
 # Contributing
 
-Contribute an idea, a reusable kit, an improvement to an existing kit, or a focused website fix. Avoid organization-specific links and private data in shared starter content.
+This repository is a customer-facing Build Guild website, not a reusable facilitator-kit catalog.
 
-## Propose before building
+## Content changes
 
-Use the **Session idea** issue form to describe the audience, learning outcome, format, prerequisites, and potential exercises. Ideas are welcome without a speaker or date. Use the bug form for reproducible failures.
+Follow [authoring](docs/AUTHORING.md). Add or update a session's `index.md` for its public summary, dates, high-level agenda, optional minutes, and resource links. Keep attendance lists, private meeting credentials, internal discussion, and restricted recordings out of the repository.
 
-## Submit a kit
+Use the **Session proposal** issue form for a future public gathering and the bug form for reproducible website problems. Local schedules and minutes normally belong in the appropriate Guild's template copy, not the shared starter examples.
 
-1. Fork the central repository and create a branch, or use a branch if you have write access. A template copy is independent, not automatically a fork; fork the central repository separately when contributing back.
-2. Follow [authoring](docs/AUTHORING.md). Reuse existing kit IDs for improvements, or create a new kebab-case ID for a distinct session.
-3. Include facilitator preparation, timing, concrete exercises/prompts, expected outcomes, adaptations, and follow-up. Use `idea` for incomplete proposals. A `ready` kit should be complete enough for another facilitator to review and try.
-4. Preserve attribution and record meaningful adaptations. Link third-party resources instead of uploading materials without permission.
-5. Run `npm ci`, `npm test`, and `npm run build`. Review the generated page and downloadable guide.
-6. Open a pull request explaining the learning goal and the changes. Include pilot observations if available; do not claim a session was piloted if it was not.
+## Website changes
 
-Reviewers check portability, accuracy, usable setup, safe practice data, reasonable scope, attribution, and rendered behavior. Shared kits must not require private meeting links or undisclosed paid access.
+1. Fork the repository or create a branch if you have write access. Template copies are independent, not automatically forks.
+2. Keep changes focused. Normal session updates should require only Markdown and optional public assets, not renderer edits.
+3. Run `npm ci`, `npm test`, and `npm run build`.
+4. Review the rendered result, dates, optional minutes, and links at both mobile and desktop sizes.
+5. Open a pull request describing the intended audience-facing change and actual verification.
 
-## Improve the framework
+Preserve relative links for root and GitHub Pages repository-subpath hosting. CI validates pull requests but never deploys them. New dependencies or publishing behavior need a clear reason.
 
-Keep changes small. Ordinary content updates should not require layout edits. Add focused regression cases for changed behavior, and keep both root and repository-subpath hosting functional. CI never deploys a pull request.
-
-## Bring improvements into a template copy
-
-There is no automatic upstream sync. Review central changes, copy or cherry-pick only the pieces you need, resolve differences with your Guild's local content, and run tests/build before publishing. Retain the kit's stable ID and attribution when it is still the same learning plan; use a new ID and a `sources` reference for a substantially different derivative.
+There is no automatic upstream synchronization. Review and apply shared website updates deliberately, preserving local Guild content.
 
 ## Contribution terms
 
-By submitting original material, you agree to license code/project documentation under MIT and session content under CC BY 4.0 as described in [licensing](docs/LICENSING.md). You must have the right to contribute it. Third-party links do not transfer their content's license. Do not add attendee personal information, secrets, or restricted organizational content.
+Original code/project documentation is MIT; original public session descriptions, agendas, minutes, and assets are CC BY 4.0. Preserve attribution when adapting existing content and contribute only material you are authorized to license. External links retain their own licenses and access terms; see [licensing](docs/LICENSING.md).
+
+Reusable session kits are maintained separately. This website does not create, migrate, or synchronize a kit repository.

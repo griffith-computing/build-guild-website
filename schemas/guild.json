@@ -19,8 +19,7 @@
         "registration": { "$ref": "common.json#/definitions/text" },
         "community": { "$ref": "common.json#/definitions/text" },
         "suggestTopic": { "$ref": "common.json#/definitions/text" },
-        "volunteer": { "$ref": "common.json#/definitions/text" },
-        "contribute": { "$ref": "common.json#/definitions/text" }
+        "volunteer": { "$ref": "common.json#/definitions/text" }
       }
     },
     "organizers": {

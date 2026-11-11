@@ -10,6 +10,6 @@ This framework is an original implementation informed by these public repositori
 
 Repository trees, READMEs, relevant page structure, and publishing workflows were inspected while planning. None declared a license in GitHub repository metadata at that time. Public availability alone does not grant reuse rights.
 
-No reference code, event descriptions, guides, slides, photographs, logos, or recordings were imported. The starter kits are newly authored examples, not migrated event material. The California site's automated news-feed feature is deliberately outside this version's scope.
+No reference code, event descriptions, guides, slides, photographs, logos, or recordings were imported. The sample public sessions are newly authored examples, not migrated meeting records. The website contains no facilitator-kit catalog. The California site's automated news-feed feature is deliberately outside this version's scope.
 
-When contributing adaptations, document their actual source and permission/license in the kit guide and metadata. Do not infer that this template's licenses apply to the references.
+When contributing adaptations, document their actual source and permission/license in the session Markdown or resource notices. Do not infer that this template's licenses apply to the references.
