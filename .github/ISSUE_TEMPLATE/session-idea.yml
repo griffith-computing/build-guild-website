@@ -1,0 +1,39 @@
+name: Session idea
+description: Propose a reusable idea or facilitator kit for any Build Guild.
+title: "Session idea: "
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Learning outcome
+      description: What should participants be able to do afterward?
+    validations:
+      required: true
+  - type: textarea
+    id: audience
+    attributes:
+      label: Audience and prerequisites
+      description: Include experience level and approved tools or access needed.
+    validations:
+      required: true
+  - type: dropdown
+    id: format
+    attributes:
+      label: Proposed format
+      options:
+        - workshop
+        - deep-dive
+        - showcase
+        - discussion
+  - type: textarea
+    id: exercise
+    attributes:
+      label: Exercise and duration
+      description: Outline an activity, estimated session duration, and observable result. No date or presenter is required.
+    validations:
+      required: true
+  - type: textarea
+    id: resources
+    attributes:
+      label: Sources and reuse permissions
+      description: Link resources and explain their license if you plan to adapt them. Do not upload restricted material.

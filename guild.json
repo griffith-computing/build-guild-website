@@ -1,0 +1,15 @@
+{
+  "$schema": "./schemas/guild.json",
+  "name": "Your Build Guild",
+  "description": "A local community of builders learning and sharing with GitHub Copilot.",
+  "intro": "Bring a question. Try an idea. Leave with something you built together.",
+  "cadence": "Choose your meeting cadence before launching",
+  "timeZone": "Etc/UTC",
+  "example": true,
+  "accent": "violet",
+  "links": {
+    "contribute": "https://github.com/griffith-computing/build-guild-website",
+    "suggestTopic": "https://github.com/griffith-computing/build-guild-website/issues/new?template=session-idea.yml"
+  },
+  "organizers": []
+}

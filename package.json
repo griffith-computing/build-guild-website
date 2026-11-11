@@ -1,0 +1,17 @@
+{
+  "name": "build-guild-template",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "validate": "node scripts/build.mjs --validate",
+    "test": "node --test",
+    "preview": "node scripts/preview.mjs"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "markdown-it": "^14.1.0"
+  }
+}
