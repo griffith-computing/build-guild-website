@@ -2,12 +2,14 @@ import { readFile, readdir, lstat } from 'node:fs/promises';
 import path from 'node:path';
 import Ajv from 'ajv';
 import MarkdownIt from 'markdown-it';
+import { parseDocument } from 'yaml';
 
 const schemaRoot = new URL('../schemas/', import.meta.url);
 const ajv = new Ajv({ allErrors: true, strict: false });
-for (const name of ['common', 'guild', 'session', 'event']) {
+for (const name of ['common', 'guild', 'session']) {
   ajv.addSchema(JSON.parse(await readFile(new URL(`${name}.json`, schemaRoot), 'utf8')));
 }
+const validSlug = ajv.getSchema('common.json#/definitions/id');
 const markdown = new MarkdownIt({ html: false, linkify: false });
 const assetExtensions = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.pdf', '.txt', '.md', '.json', '.csv', '.ipynb']);
 const imageExtensions = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp']);
@@ -16,24 +18,16 @@ export function fail(file, field, message) {
   throw new Error(`${file}${field ? ` ${field}` : ''}: ${message}`);
 }
 
-async function json(file, schema) {
-  let value;
-  try {
-    value = JSON.parse(await readFile(file, 'utf8'));
-  } catch (error) {
-    fail(file, '', error.message);
-  }
-  const validate = ajv.getSchema(`${schema}.json`);
-  if (!validate(value)) {
-    fail(file, '', ajv.errorsText(validate.errors, { separator: '; ', dataVar: schema }));
-  }
+function validate(value, schema, file) {
+  const check = ajv.getSchema(`${schema}.json`);
+  if (!check(value)) fail(file, '', ajv.errorsText(check.errors, { separator: '; ', dataVar: schema }));
   return value;
 }
 
 export function httpsUrl(value, file, field) {
   let url;
   try { url = new URL(value); } catch { fail(file, field, 'expected an absolute HTTPS URL'); }
-  if (url.protocol !== 'https:' || url.username || url.password || /[\s\\<>"]/.test(value)) {
+  if (!/^https:\/\//i.test(value) || url.protocol !== 'https:' || url.username || url.password || /[\s\\<>"]/.test(value)) {
     fail(file, field, 'expected an HTTPS URL without credentials, whitespace, or backslashes');
   }
   return value;
@@ -54,77 +48,119 @@ export function timestamp(value, file, field) {
   return Date.parse(value);
 }
 
-// Reject symlinks in every component so a kit cannot publish files outside itself.
-export async function regularFile(root, relative, file, field) {
+async function checkedPath(root, relative) {
   let current = root;
+  let stat;
   for (const component of relative.split('/')) {
     current = path.join(current, component);
-    let stat;
-    try { stat = await lstat(current); } catch (error) { fail(file, field, error.message); }
-    if (stat.isSymbolicLink()) fail(file, field, 'symbolic links are not supported');
+    stat = await lstat(current);
+    if (stat.isSymbolicLink()) fail(current, '', 'symbolic links are not supported');
   }
-  if (!(await lstat(current)).isFile()) fail(file, field, 'expected a regular file');
-  return current;
+  return { current, stat };
+}
+
+export async function regularFile(root, relative, file, field) {
+  let result;
+  try { result = await checkedPath(root, relative); }
+  catch (error) { fail(file, field, error.message); }
+  if (!result.stat.isFile()) fail(file, field, 'expected a regular file');
+  return result.current;
 }
 
 async function resourceUrl(value, directory, file, field, assets) {
-  if (value.startsWith('https://')) return httpsUrl(value, file, field);
+  if (/^https:\/\//i.test(value)) return httpsUrl(value, file, field);
   if (!/^assets\/[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*\.[a-zA-Z0-9]+$/.test(value) ||
       !assetExtensions.has(path.extname(value).toLowerCase())) {
     fail(file, field, 'use HTTPS or a safe assets/ path with a supported file extension');
   }
-  const source = await regularFile(directory, value, file, field);
-  assets.set(value, source);
-  return value;
+  assets.set(value, await regularFile(directory, value, file, field));
 }
 
-async function markdownBody(directory, assets) {
-  const file = await regularFile(directory, 'README.md', directory, 'README.md');
-  const source = await readFile(file, 'utf8');
-  if (!source.trim()) fail(file, '', 'session material must not be empty');
-  // markdown-it leaves blocked links as text; report them instead of silently publishing.
-  const parser = new MarkdownIt({ html: false });
-  parser.validateLink = () => true;
-  const tokens = parser.parse(source, {});
-  const inspect = async (items) => {
+function frontMatter(source, file) {
+  const normalized = source.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
+  const match = /^---\n([\s\S]*?)\n---(?:\n|$)/.exec(normalized);
+  if (!match) fail(file, 'front matter', 'start with YAML between two --- lines');
+  const document = parseDocument(match[1], { schema: 'core', uniqueKeys: true });
+  if (document.errors.length || document.warnings.length) {
+    fail(file, 'front matter', [...document.errors, ...document.warnings].map(error => error.message).join('; '));
+  }
+  let metadata;
+  try { metadata = document.toJS({ maxAliasCount: 0 }); }
+  catch (error) { fail(file, 'front matter', error.message); }
+  return { metadata: validate(metadata, 'session', file), source: normalized.slice(match[0].length) };
+}
+
+async function renderBody(source, directory, file, assets) {
+  // Inspect even links the renderer normally blocks, so invalid content fails explicitly.
+  const inspector = new MarkdownIt({ html: false });
+  inspector.validateLink = () => true;
+  const inspect = async items => {
     for (const token of items) {
       if (token.type === 'link_open' || token.type === 'image') {
         const attribute = token.type === 'image' ? 'src' : 'href';
         const value = token.attrGet(attribute);
         if (token.type === 'image' &&
             (!value.startsWith('assets/') || !imageExtensions.has(path.extname(value).toLowerCase()))) {
-          fail(file, attribute, 'images must be local PNG, JPEG, GIF, or WebP kit assets');
+          fail(file, attribute, 'images must be local PNG, JPEG, GIF, or WebP session assets');
         }
         await resourceUrl(value, directory, file, attribute, assets);
       }
       if (token.children) await inspect(token.children);
     }
   };
-  await inspect(tokens);
-  return { source, html: markdown.render(source) };
+  await inspect(inspector.parse(source, {}));
+  const tokens = markdown.parse(source, {});
+  const sections = new Map();
+  const omitted = new Set();
+  for (let index = 0; index < tokens.length; index++) {
+    const token = tokens[index];
+    if (token.type !== 'heading_open' || token.tag !== 'h2' || token.level !== 0) continue;
+    const name = tokens[index + 1].content.trim().toLowerCase();
+    if (!['agenda', 'meeting minutes'].includes(name)) continue;
+    if (sections.has(name)) fail(file, name, 'include this section only once');
+    let end = index + 3;
+    while (end < tokens.length &&
+      !(tokens[end].type === 'heading_open' && tokens[end].level === 0 && ['h1', 'h2'].includes(tokens[end].tag))) end++;
+    const body = tokens.slice(index + 3, end);
+    const nonempty = body.some(item => ['inline', 'fence', 'code_block'].includes(item.type) && item.content.trim());
+    const id = name.replaceAll(' ', '-');
+    if (nonempty) token.attrSet('id', id);
+    else for (let omittedIndex = index; omittedIndex < end; omittedIndex++) omitted.add(omittedIndex);
+    sections.set(name, { nonempty, html: markdown.renderer.render(body, markdown.options, {}) });
+  }
+  return {
+    html: markdown.renderer.render(tokens.filter((_, index) => !omitted.has(index)), markdown.options, {}),
+    agenda: sections.get('agenda')?.nonempty ? sections.get('agenda').html : '',
+    hasMinutes: sections.get('meeting minutes')?.nonempty ?? false,
+    search: tokens.filter(token => token.type === 'inline').map(token => token.content).join(' ')
+  };
 }
 
-async function entries(root, name) {
-  const directory = path.join(root, name);
-  let result;
-  try {
-    if ((await lstat(directory)).isSymbolicLink()) fail(directory, '', 'symbolic links are not supported');
-    result = await readdir(directory, { withFileTypes: true });
-  }
+async function sessionDirectories(root) {
+  const relative = 'content/sessions';
+  let directory;
+  try { directory = await checkedPath(root, relative); }
   catch (error) {
     if (error.code === 'ENOENT') return [];
     throw error;
   }
-  for (const entry of result) {
-    if (entry.isSymbolicLink()) fail(directory, entry.name, 'symbolic links are not supported');
+  if (!directory.stat.isDirectory()) fail(directory.current, '', 'expected a directory');
+  const entries = await readdir(directory.current, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !validSlug(entry.name)) {
+      fail(directory.current, entry.name, 'each session must be a regular kebab-case directory');
+    }
   }
-  return result.sort((a, b) => a.name.localeCompare(b.name));
+  return entries.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function loadContent(root, now = new Date()) {
   if (!Number.isFinite(now.getTime())) throw new Error('Invalid build clock');
   const guildFile = await regularFile(root, 'guild.json', root, 'guild.json');
-  const guild = await json(guildFile, 'guild');
+  let guildData;
+  try { guildData = JSON.parse(await readFile(guildFile, 'utf8')); }
+  catch (error) { fail(guildFile, '', error.message); }
+  const guild = validate(guildData, 'guild', guildFile);
   if (!/^[A-Za-z_]+(?:\/[A-Za-z0-9_+-]+)*$/.test(guild.timeZone)) {
     fail(guildFile, 'timeZone', 'expected a supported IANA time zone, not a numeric offset');
   }
@@ -135,51 +171,23 @@ export async function loadContent(root, now = new Date()) {
     if (organizer.url) httpsUrl(organizer.url, guildFile, `organizers[${index}].url`);
   }
   const sessions = [];
-  for (const entry of await entries(root, 'sessions')) {
-    if (!entry.isDirectory()) fail('sessions', entry.name, 'each entry must be a kit directory');
-    const directory = path.join(root, 'sessions', entry.name);
-    const file = await regularFile(directory, 'session.json', directory, 'session.json');
-    const session = await json(file, 'session');
-    if (session.id !== entry.name) fail(file, 'id', 'must match the kit directory name');
-    const assets = new Map();
-    for (const [index, resource] of session.resources.entries()) {
-      await resourceUrl(resource.url, directory, file, `resources[${index}].url`, assets);
-    }
-    for (const [index, source] of (session.sources ?? []).entries()) {
-      httpsUrl(source.url, file, `sources[${index}].url`);
-    }
-    sessions.push({ ...session, assets, body: await markdownBody(directory, assets), directory });
-  }
-  if (!sessions.length) fail('sessions', '', 'include at least one session kit or idea');
-  const sessionById = new Map(sessions.map(session => [session.id, session]));
-  const events = [];
-  const ids = new Set();
-  for (const entry of await entries(root, 'events')) {
-    if (!entry.isFile() || !entry.name.endsWith('.json')) fail('events', entry.name, 'expected an event JSON file');
-    const file = await regularFile(root, `events/${entry.name}`, root, 'events');
-    const event = await json(file, 'event');
-    if (entry.name !== `${event.id}.json`) fail(file, 'id', 'must match the event filename');
-    if (ids.has(event.id)) fail(file, 'id', 'duplicate event ID');
-    ids.add(event.id);
-    const start = timestamp(event.startsAt, file, 'startsAt');
-    const end = timestamp(event.endsAt, file, 'endsAt');
+  for (const entry of await sessionDirectories(root)) {
+    const relative = `content/sessions/${entry.name}/index.md`;
+    const file = await regularFile(root, relative, relative, 'index.md');
+    const directory = path.dirname(file);
+    const { metadata, source } = frontMatter(await readFile(file, 'utf8'), file);
+    const start = timestamp(metadata.startsAt, file, 'startsAt');
+    const end = timestamp(metadata.endsAt, file, 'endsAt');
     if (end <= start) fail(file, 'endsAt', 'must be after startsAt');
-    const session = sessionById.get(event.sessionId);
-    if (event.origin === 'guild' && !session) fail(file, 'sessionId', 'unknown session kit');
-    if (session?.status === 'idea') fail(file, 'sessionId', 'promote the idea to ready before scheduling it');
-    for (const [field, url] of Object.entries(event.links ?? {})) httpsUrl(url, file, `links.${field}`);
-    events.push({
-      ...event,
-      title: session?.title ?? event.title,
-      summary: session?.summary ?? event.summary,
-      type: session?.type ?? event.type,
-      tags: session?.tags ?? event.tags,
-      status: end > now.getTime() ? 'upcoming' : 'past',
-      start,
-      end
-    });
+    for (const [field, url] of Object.entries(metadata.links ?? {})) httpsUrl(url, file, `links.${field}`);
+    const assets = new Map();
+    const body = await renderBody(source, directory, file, assets);
+    const status = end > now.getTime() ? 'upcoming' : 'past';
+    if (status === 'upcoming' && !body.agenda) fail(file, 'Agenda', 'upcoming sessions require a nonempty ## Agenda section');
+    sessions.push({ ...metadata, id: entry.name, type: metadata.type ?? 'session', tags: metadata.tags ?? [],
+      start, end, status, assets, body });
   }
-  events.sort((a, b) => a.status !== b.status ? (a.status === 'upcoming' ? -1 : 1) :
+  sessions.sort((a, b) => a.status !== b.status ? (a.status === 'upcoming' ? -1 : 1) :
     a.status === 'upcoming' ? a.start - b.start : b.start - a.start);
-  return { guild, sessions, events, now };
+  return { guild, sessions, now };
 }

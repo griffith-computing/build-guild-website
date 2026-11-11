@@ -1,19 +1,19 @@
-name: Session idea
-description: Propose a reusable idea or facilitator kit for any Build Guild.
-title: "Session idea: "
+name: Session proposal
+description: Propose a customer-facing Build Guild gathering.
+title: "Session proposal: "
 body:
   - type: textarea
     id: outcome
     attributes:
-      label: Learning outcome
-      description: What should participants be able to do afterward?
+      label: Public topic and summary
+      description: What will attendees learn or discuss?
     validations:
       required: true
   - type: textarea
     id: audience
     attributes:
-      label: Audience and prerequisites
-      description: Include experience level and approved tools or access needed.
+      label: Intended audience
+      description: Who should attend, and is any prior experience needed?
     validations:
       required: true
   - type: dropdown
@@ -28,12 +28,12 @@ body:
   - type: textarea
     id: exercise
     attributes:
-      label: Exercise and duration
-      description: Outline an activity, estimated session duration, and observable result. No date or presenter is required.
+      label: High-level agenda and proposed timing
+      description: Outline the public agenda and include a proposed date/time zone if known.
     validations:
       required: true
   - type: textarea
     id: resources
     attributes:
-      label: Sources and reuse permissions
-      description: Link resources and explain their license if you plan to adapt them. Do not upload restricted material.
+      label: Public resources
+      description: Link optional public resources. Do not upload private materials, credentials, or attendee data.

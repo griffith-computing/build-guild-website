@@ -1,9 +1,0 @@
-{
-  "$schema": "../schemas/event.json",
-  "id": "example-testing",
-  "origin": "guild",
-  "sessionId": "testing-with-copilot",
-  "startsAt": "2026-01-21T17:00:00Z",
-  "endsAt": "2026-01-21T18:00:00Z",
-  "example": true
-}

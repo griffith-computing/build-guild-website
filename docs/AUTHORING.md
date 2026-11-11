@@ -1,30 +1,56 @@
-# Authoring and adapting sessions
+# Publishing session content
 
-## Create an idea or kit
+## Create a session
 
 From the repository root in PowerShell:
 
 ```powershell
-Copy-Item -Recurse docs\session-template sessions\your-session
+Copy-Item -Recurse docs\session-template content\sessions\your-session
 ```
 
-Choose a unique kebab-case folder name and set the same `id` in `session.json`. The copied `$schema` works at the destination. Edit the title, summary, audience, duration, level, format, objectives, and tags. Replace the guide's scaffolding with your own material.
+Choose a unique kebab-case directory name. It becomes the public URL `sessions/your-session/index.html`; a repeated topic on another date should have a different directory.
 
-Use `status: "idea"` while developing an outline. No date or presenter is required. To make it ready, complete the setup, agenda, exercises, verification, debrief, and follow-up so someone else can facilitate it. Review or pilot it when possible and record what was actually tried. A ready label is not a guarantee of official training or product support.
+Edit only `index.md` to set the title, short public summary, start/end times with explicit UTC offsets, optional tags/type/links, and high-level agenda. Set `example: false` for an actual session.
 
-## Adapt an existing kit
+```markdown
+---
+title: "Practical workflows with GitHub Copilot"
+summary: "Explore everyday workflows and share your questions."
+startsAt: "2027-04-14T13:00:00-04:00"
+endsAt: "2027-04-14T14:00:00-04:00"
+tags:
+  - copilot
+links:
+  registration: "https://example.org/register"
+---
 
-Copy the whole kit folder, including its `assets`. Preserve the original attribution, source URL, and license, and add an adaptation note describing your changes. Add a `sources` entry pointing to the source repository/page. For a substantially different learning plan, choose a new ID rather than overwriting the old one.
+## Agenda
 
-Adapt to your audience's approved tools and access. Keep sample data non-sensitive. Prefer a small working task with observable outcomes over a large demo that depends on one facilitator's environment.
+- Community updates
+- Workflow demonstration
+- Questions and discussion
+```
 
-## Schedule it
+Replace example dates and URLs with confirmed public information. Agenda content appears directly in upcoming session cards as well as on the detail page. Keep it high-level and attendee-focused, not a facilitator script.
 
-Add a record under `events` referencing the ready kit ID; see [configuration](CONFIGURATION.md). Use actual timestamps with explicit UTC offsets, not a made-up future date for an idea. Delete starter example records before publishing your real Guild.
+## Add optional minutes
 
-After meeting, add public notes, recording, slides, or demo links to that occurrence. Multiple events can reference the same kit without duplicating its material. Do not upload meeting credentials or restricted recordings.
+After the session, add this section to the same Markdown file:
 
-## Check and share
+```markdown
+## Meeting minutes
+
+- Topics covered and public takeaways
+- Agreed next steps
+```
+
+A past session gets a **Meeting minutes** link only when that section has content. Omit the heading when no minutes are available; an empty heading is also suppressed. Historical sessions can exist with only a title, summary, and dates.
+
+Add recording/slides/demo HTTPS links to front matter, or place public resources in normal Markdown sections. Relative assets live in the session's `assets` directory and use paths such as `assets/recap.pdf`.
+
+All authored sections are public, including minutes committed before a session ends. There is no embargo, authentication, or private draft store. Review minutes and attachments for approval before committing.
+
+## Validate and publish
 
 ```powershell
 npm run validate
@@ -33,6 +59,10 @@ npm run build
 npm run preview
 ```
 
-Open the kit page, follow each local resource link, and read the downloadable Markdown. Confirm the duration matches the agenda and that prerequisites are actionable. Site search matches title, summary, audience, objectives, type, status, and tags; it does not search the full guide.
+Check the listing and session detail page, date/time zone, agenda, optional minutes, and resource links. Commit the Markdown and any referenced assets together. A pull request validates the content; merging into the deployment branch publishes the generated site.
 
-Submit reusable improvements through the central repository's contribution workflow. Local scheduling and organization-specific notes usually belong only in your Guild copy.
+Grouping uses the build clock. Adding minutes or another content edit will trigger a rebuild; you can also manually dispatch Pages after a meeting. There is no scheduled rebuild.
+
+## Reusable kits
+
+Facilitator exercises, prompts, and reusable kits belong in a separate repository, not this website. Public sessions can use ordinary HTTPS resource links when appropriate, but this site never fetches a kit repository during build or at runtime.

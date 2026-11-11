@@ -2,21 +2,24 @@
   "$id": "session.json",
   "type": "object",
   "additionalProperties": false,
-  "required": ["id", "title", "summary", "status", "type", "level", "durationMinutes", "audience", "tags", "prerequisites", "objectives", "resources"],
+  "required": ["title", "summary", "startsAt", "endsAt"],
   "properties": {
-    "$schema": { "type": "string" },
-    "id": { "$ref": "common.json#/definitions/id" },
     "title": { "$ref": "common.json#/definitions/text" },
     "summary": { "$ref": "common.json#/definitions/text" },
-    "status": { "enum": ["idea", "ready"] },
+    "startsAt": { "$ref": "common.json#/definitions/text" },
+    "endsAt": { "$ref": "common.json#/definitions/text" },
     "type": { "$ref": "common.json#/definitions/type" },
-    "level": { "enum": ["beginner", "intermediate", "advanced"] },
-    "durationMinutes": { "type": "integer", "minimum": 5, "maximum": 480 },
-    "audience": { "$ref": "common.json#/definitions/texts", "minItems": 1 },
-    "tags": { "$ref": "common.json#/definitions/texts", "minItems": 1 },
-    "prerequisites": { "$ref": "common.json#/definitions/texts" },
-    "objectives": { "$ref": "common.json#/definitions/texts", "minItems": 1 },
-    "resources": { "$ref": "common.json#/definitions/resources" },
-    "sources": { "$ref": "common.json#/definitions/resources" }
+    "tags": { "$ref": "common.json#/definitions/texts" },
+    "example": { "type": "boolean" },
+    "links": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "registration": { "$ref": "common.json#/definitions/text" },
+        "recording": { "$ref": "common.json#/definitions/text" },
+        "slides": { "$ref": "common.json#/definitions/text" },
+        "demo": { "$ref": "common.json#/definitions/text" }
+      }
+    }
   }
 }

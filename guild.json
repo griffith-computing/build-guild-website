@@ -7,9 +7,6 @@
   "timeZone": "Etc/UTC",
   "example": true,
   "accent": "violet",
-  "links": {
-    "contribute": "https://github.com/griffith-computing/build-guild-website",
-    "suggestTopic": "https://github.com/griffith-computing/build-guild-website/issues/new?template=session-idea.yml"
-  },
+  "links": {},
   "organizers": []
 }

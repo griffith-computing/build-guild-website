@@ -4,50 +4,46 @@ import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, cp, symlink } from 'n
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stringify } from 'yaml';
 import { loadContent, timestamp } from '../scripts/content.mjs';
 import { build } from '../scripts/build.mjs';
 import { matches } from '../assets/filters.js';
 
 const now = new Date('2026-11-11T18:00:00Z');
 const repository = fileURLToPath(new URL('../', import.meta.url));
-const writeJson = (file, value) => writeFile(file, `${JSON.stringify(value, null, 2)}\n`);
 const guild = {
   name: 'Test Guild', description: 'Public learning community', intro: 'Try a small idea.',
   cadence: 'Monthly', timeZone: 'America/New_York'
 };
-const session = {
-  id: 'test-kit', title: 'Test kit', summary: 'A focused learning exercise', status: 'ready',
-  type: 'workshop', level: 'beginner', durationMinutes: 45, audience: ['Developers'],
-  tags: ['quality', 'copilot'], prerequisites: [], objectives: ['Review observable evidence'], resources: []
+const metadata = {
+  title: 'A public session', summary: 'Explore a practical Copilot workflow.',
+  startsAt: '2026-11-12T13:00:00-05:00', endsAt: '2026-11-12T14:00:00-05:00',
+  type: 'discussion', tags: ['copilot', 'community']
 };
-const event = {
-  id: 'test-event', origin: 'guild', sessionId: 'test-kit',
-  startsAt: '2026-11-12T13:00:00-05:00', endsAt: '2026-11-12T14:00:00-05:00'
-};
+const agenda = '## Agenda\n\n- Community updates\n- Questions and discussion\n';
+const writeJson = (file, value) => writeFile(file, `${JSON.stringify(value, null, 2)}\n`);
 
-async function fixture(t) {
-  const root = await mkdtemp(path.join(tmpdir(), 'build-guild-test-'));
-  t.after(() => rm(root, { recursive: true, force: true }));
-  const kit = path.join(root, 'sessions', 'test-kit');
-  await mkdir(kit, { recursive: true });
-  await mkdir(path.join(root, 'events'));
-  await writeJson(path.join(root, 'guild.json'), guild);
-  await writeJson(path.join(kit, 'session.json'), session);
-  await writeFile(path.join(kit, 'README.md'), '## Exercise\n\nReview a small change.\n');
-  await writeJson(path.join(root, 'events', 'test-event.json'), event);
-  return { root, kit };
+async function writeSession(root, id = 'test-session', fields = metadata, body = agenda) {
+  const directory = path.join(root, 'content', 'sessions', id);
+  await mkdir(directory, { recursive: true });
+  const file = path.join(directory, 'index.md');
+  await writeFile(file, `---\n${stringify(fields)}---\n\n${body}`);
+  return { file, directory };
 }
 
-test('starter content builds and every published local link resolves at root and a repository subpath', async t => {
+async function fixture(t) {
+  const root = await mkdtemp(path.join(tmpdir(), 'build-guild-site-test-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await writeJson(path.join(root, 'guild.json'), guild);
+  return { root, ...await writeSession(root) };
+}
+
+test('sample sessions publish attendee pages with working root/subpath links and no kit downloads', async t => {
   const { root } = await fixture(t);
-  await rm(path.join(root, 'sessions'), { recursive: true });
-  await rm(path.join(root, 'events'), { recursive: true });
-  await cp(path.join(repository, 'sessions'), path.join(root, 'sessions'), { recursive: true });
-  await cp(path.join(repository, 'events'), path.join(root, 'events'), { recursive: true });
-  await cp(path.join(repository, 'guild.json'), path.join(root, 'guild.json'));
+  await rm(path.join(root, 'content'), { recursive: true });
+  await cp(path.join(repository, 'content'), path.join(root, 'content'), { recursive: true });
   const result = await build({ root, now });
-  assert.equal(result.sessions.filter(item => item.status === 'idea').length, 1);
-  assert.deepEqual(result.events.map(item => item.status), ['upcoming', 'past']);
+  assert.deepEqual(result.sessions.map(session => session.status), ['upcoming', 'past', 'past']);
   const output = path.join(root, 'dist');
   async function check(directory) {
     for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -63,32 +59,30 @@ test('starter content builds and every published local link resolves at root and
           const target = new URL(attribute.replaceAll('&amp;', '&'), base);
           assert.ok(target.pathname.startsWith(`/${prefix}`), `Escaped site subpath: ${attribute}`);
           const local = decodeURIComponent(target.pathname.slice(prefix.length + 1));
-          assert.ok((await readFile(path.join(output, ...local.split('/')))).length, `Broken link ${attribute} in ${relative}`);
-          if (target.hash) {
-            const targetHtml = await readFile(path.join(output, ...local.split('/')), 'utf8');
-            assert.ok(targetHtml.includes(`id="${target.hash.slice(1)}"`), `Missing anchor ${target.hash}`);
-          }
+          const body = await readFile(path.join(output, ...local.split('/')), 'utf8');
+          assert.ok(body.length, `Broken link ${attribute} in ${relative}`);
+          if (target.hash) assert.ok(body.includes(`id="${target.hash.slice(1)}"`), `Missing anchor ${target.hash}`);
         }
       }
-      assert.match(html, /<main id="main"/);
       assert.match(html, /Skip to content/);
+      assert.doesNotMatch(html, /#catalog|Open session kit|facilitator|Contribute a kit|session\.json|Download Markdown/);
     }
   }
   await check(output);
-  const html = await readFile(path.join(output, 'index.html'), 'utf8');
-  assert.match(html, /Template preview/);
-  assert.match(html, /Example only/);
-  assert.match(html, /data-card/);
-  assert.match(html, /class="filters" hidden/);
-  assert.match(html, /Give Copilot useful context/);
-  assert.doesNotMatch(html, /Meet the organizers/);
-  const metadata = JSON.parse(await readFile(path.join(output, 'sessions', 'copilot-context', 'session.json'), 'utf8'));
-  assert.equal(metadata.$schema, undefined);
-  assert.match(await readFile(path.join(output, 'sessions', 'copilot-context', 'assets', 'prompt-worksheet.md'), 'utf8'), /CC BY 4.0/);
+  const home = await readFile(path.join(output, 'index.html'), 'utf8');
+  assert.match(home, /Upcoming sessions/);
+  assert.match(home, /Past sessions/);
+  assert.match(home, /agenda-preview/);
+  assert.equal((home.match(/>Meeting minutes<\/a>/g) ?? []).length, 1);
+  for (const session of result.sessions) {
+    for (const name of ['index.md', 'README.md', 'session.json']) {
+      await assert.rejects(readFile(path.join(output, 'sessions', session.id, name)), /ENOENT/);
+    }
+  }
   await assert.rejects(readFile(path.join(output, 'guild.json')), /ENOENT/);
 });
 
-test('a different Guild rebrands without layout edits and optional sections are omitted', async t => {
+test('an alternate Guild rebrands attendee pages without layout edits', async t => {
   const { root } = await fixture(t);
   await writeJson(path.join(root, 'guild.json'), {
     ...guild, name: 'Coastal Builders', accent: 'teal', timeZone: 'America/Los_Angeles',
@@ -102,159 +96,215 @@ test('a different Guild rebrands without layout edits and optional sections are 
   assert.match(html, /10:00 AM/);
   assert.match(html, /Meet the organizers/);
   assert.match(html, /x=1&amp;y=2/);
-  assert.doesNotMatch(html, /Template preview|Your Build Guild|Suggest a topic|Watch recording/);
+  assert.doesNotMatch(html, /Example Guild|Your Build Guild|Suggest a topic|Watch recording/);
 });
 
-test('missing events are allowed; ideas have no date and cannot be scheduled', async t => {
-  const { root, kit } = await fixture(t);
-  await writeJson(path.join(kit, 'session.json'), { ...session, status: 'idea' });
-  await assert.rejects(loadContent(root, now), /sessionId: promote the idea to ready/);
-  await rm(path.join(root, 'events'), { recursive: true });
-  await build({ root, now });
-  assert.match(await readFile(path.join(root, 'dist', 'index.html'), 'utf8'), /No events scheduled yet/);
-  assert.match(await readFile(path.join(root, 'dist', 'sessions', 'test-kit', 'index.html'), 'utf8'), /Idea, not a ready-to-run session/);
-});
-
-test('event status uses end time and order is upcoming ascending then past descending', async t => {
+test('upcoming sessions require a real agenda, not a heading inside a code block or quote', async t => {
   const { root } = await fixture(t);
-  const values = [
-    { id: 'past-old', startsAt: '2026-10-01T10:00:00Z', endsAt: '2026-10-01T11:00:00Z' },
-    { id: 'past-recent', startsAt: '2026-11-11T17:00:00Z', endsAt: '2026-11-11T18:00:00Z' },
-    { id: 'in-progress', startsAt: '2026-11-11T17:30:00Z', endsAt: '2026-11-11T18:30:00Z' },
-    { id: 'future', startsAt: '2026-12-01T10:00:00Z', endsAt: '2026-12-01T11:00:00Z' }
-  ];
-  await rm(path.join(root, 'events', 'test-event.json'));
-  for (const value of values) await writeJson(path.join(root, 'events', `${value.id}.json`), { ...event, ...value });
+  for (const body of ['', '## Agenda\n', '```\n## Agenda\n- An example\n```\n', '> ## Agenda\n> Not a real agenda\n']) {
+    await writeSession(root, 'test-session', metadata, body);
+    await assert.rejects(loadContent(root, now), /index.md Agenda: upcoming sessions require/);
+  }
+  await writeSession(root, 'test-session', metadata, `${agenda}\n\`\`\`markdown\n## Meeting minutes\nExample only\n\`\`\`\n`);
+  const { sessions } = await loadContent(root, now);
+  assert.equal(sessions[0].body.hasMinutes, false);
+  assert.match(sessions[0].body.html, /<pre>/);
+});
+
+test('past sessions can have no agenda or minutes; empty minutes do not generate headings or links', async t => {
+  const { root } = await fixture(t);
+  const past = { ...metadata, startsAt: '2026-01-01T10:00:00Z', endsAt: '2026-01-01T11:00:00Z' };
+  for (const body of ['', '## Meeting minutes\n\n', '## Meeting minutes\n\n## Resources\n\nPublic summary.']) {
+    await writeSession(root, 'test-session', past, body);
+    const result = await build({ root, now });
+    assert.equal(result.sessions[0].body.hasMinutes, false);
+    assert.doesNotMatch(await readFile(path.join(root, 'dist', 'index.html'), 'utf8'), /#meeting-minutes/);
+    assert.doesNotMatch(await readFile(path.join(root, 'dist', 'sessions', 'test-session', 'index.html'), 'utf8'), /id="meeting-minutes"/);
+  }
+});
+
+test('public minutes are linked only for past sessions and have a working detail anchor', async t => {
+  const { root } = await fixture(t);
+  const body = `${agenda}\n## Meeting Minutes\n\n- Public decisions and next steps.\n`;
+  await writeSession(root, 'test-session', {
+    ...metadata, links: { recording: 'https://example.org/recording', slides: 'https://example.org/slides' }
+  }, body);
+  await build({ root, now });
+  assert.doesNotMatch(await readFile(path.join(root, 'dist', 'index.html'), 'utf8'), /#meeting-minutes/);
+  await build({ root, now: new Date(metadata.endsAt) });
+  const html = await readFile(path.join(root, 'dist', 'index.html'), 'utf8');
+  assert.match(html, /sessions\/test-session\/index.html#meeting-minutes/);
+  assert.match(html, /href="https:\/\/example.org\/recording">Watch recording/);
+  assert.match(html, /href="https:\/\/example.org\/slides">View slides/);
+  assert.match(await readFile(path.join(root, 'dist', 'sessions', 'test-session', 'index.html'), 'utf8'), /<h2 id="meeting-minutes">Meeting Minutes<\/h2>/);
+});
+
+test('duplicate reserved sections fail instead of choosing one silently', async t => {
+  const { root } = await fixture(t);
+  for (const body of [`${agenda}\n## agenda\n\nAnother agenda.`, `${agenda}\n## Meeting minutes\n\nOne.\n\n## Meeting minutes\n\nTwo.`]) {
+    await writeSession(root, 'test-session', metadata, body);
+    await assert.rejects(loadContent(root, now), /include this section only once/);
+  }
+});
+
+test('classification uses the end time, with upcoming ascending and past descending', async t => {
+  const { root } = await fixture(t);
+  await rm(path.join(root, 'content'), { recursive: true });
+  for (const [id, start, end] of [
+    ['past-old', '2026-10-01T10:00:00Z', '2026-10-01T11:00:00Z'],
+    ['past-recent', '2026-11-11T17:00:00Z', '2026-11-11T18:00:00Z'],
+    ['in-progress', '2026-11-11T17:30:00Z', '2026-11-11T18:30:00Z'],
+    ['future', '2026-12-01T10:00:00Z', '2026-12-01T11:00:00Z']
+  ]) await writeSession(root, id, { ...metadata, startsAt: start, endsAt: end });
   const result = await loadContent(root, now);
-  assert.deepEqual(result.events.map(item => [item.id, item.status]), [
+  assert.deepEqual(result.sessions.map(session => [session.id, session.status]), [
     ['in-progress', 'upcoming'], ['future', 'upcoming'], ['past-recent', 'past'], ['past-old', 'past']
   ]);
 });
 
-test('external events are labeled independently and require registration', async t => {
-  const { root } = await fixture(t);
-  const external = { ...event, origin: 'external', title: 'An external workshop', summary: 'Hosted elsewhere',
-    type: 'showcase', tags: ['community'], links: { registration: 'https://example.org/event' } };
-  delete external.sessionId;
-  await writeJson(path.join(root, 'events', 'test-event.json'), external);
-  await build({ root, now });
-  assert.match(await readFile(path.join(root, 'dist', 'index.html'), 'utf8'), /external event/);
-  delete external.links.registration;
-  await writeJson(path.join(root, 'events', 'test-event.json'), external);
-  await assert.rejects(loadContent(root, now), /registration/);
-});
-
-test('invalid content reports its file and field without replacing the last successful build', async t => {
-  const { root } = await fixture(t);
+test('invalid front matter is reported with the file and cannot replace successful output', async t => {
+  const { root, file } = await fixture(t);
   await build({ root, now });
   const output = await readFile(path.join(root, 'dist', 'index.html'), 'utf8');
-  const invalidCases = [
-    [{ ...event, sessionId: 'missing' }, /sessionId: unknown session kit/],
-    [{ ...event, startsAt: '2026-02-30T10:00:00Z' }, /startsAt: invalid calendar/],
-    [{ ...event, startsAt: '2026-11-12T13:00:00' }, /startsAt: use YYYY/],
-    [{ ...event, endsAt: event.startsAt }, /endsAt: must be after/],
-    [{ ...event, id: 'wrong-name' }, /id: must match the event filename/],
-    [{ ...event, links: { notes: 'javascript:alert(1)' } }, /links.notes: expected an .*HTTPS/]
-  ];
-  for (const [invalid, expected] of invalidCases) {
-    await writeJson(path.join(root, 'events', 'test-event.json'), invalid);
-    await assert.rejects(build({ root, now }), error => /test-event.json/.test(error.message) && expected.test(error.message));
+  const yaml = stringify(metadata);
+  for (const source of [
+    'No front matter', '---\ntitle: [broken\n---\n',
+    `---\n${yaml}title: Duplicate title\n---\n${agenda}`,
+    `---\n${yaml.replace(/^title:.+$/m, 'title: !custom "A public session"')}---\n${agenda}`,
+    `---\n${yaml.replace(/^title:.+$/m, 'title: &name "A public session"').replace(/^summary:.+$/m, 'summary: *name')}---\n${agenda}`,
+    '---\n- a list instead of metadata\n---\n'
+  ]) {
+    await writeFile(file, source);
+    await assert.rejects(build({ root, now }), /index.md/);
     assert.equal(await readFile(path.join(root, 'dist', 'index.html'), 'utf8'), output);
   }
 });
 
-test('rejects invalid time zones, links, schema fields, and kit identifiers', async t => {
-  const { root, kit } = await fixture(t);
-  for (const invalid of [
-    { ...guild, timeZone: 'Not/AZone' }, { ...guild, timeZone: '+01:00' },
-    { ...guild, links: { registration: 'https://user:password@example.org' } },
-    { ...guild, links: { registration: 'http://example.org' } }, { ...guild, typo: 'ignored?' }
+test('metadata validates dates, optional links and unknown fields without fallback', async t => {
+  const { root } = await fixture(t);
+  for (const fields of [
+    { ...metadata, title: ' ' }, { ...metadata, startsAt: '2026-02-30T10:00:00Z' },
+    { ...metadata, startsAt: '2026-11-12T13:00:00' }, { ...metadata, endsAt: metadata.startsAt },
+    { ...metadata, status: 'upcoming' }, { ...metadata, sessionId: 'old-kit' },
+    { ...metadata, tags: ['same', 'same'] }, { ...metadata, type: 'unknown' },
+    { ...metadata, links: { recording: 'javascript:alert(1)' } },
+    { ...metadata, links: { registration: 'https:example.org/register' } },
+    { ...metadata, links: { registration: 'https://user:password@example.org' } }
   ]) {
-    await writeJson(path.join(root, 'guild.json'), invalid);
-    await assert.rejects(loadContent(root, now), /guild.json/);
-  }
-  await writeJson(path.join(root, 'guild.json'), guild);
-  for (const invalid of [
-    { ...session, id: 'another-kit' }, { ...session, status: 'draft' },
-    { ...session, durationMinutes: 0 }, { ...session, tags: ['same', 'same'] }
-  ]) {
-    await writeJson(path.join(kit, 'session.json'), invalid);
-    await assert.rejects(loadContent(root, now), /session.json/);
+    await writeSession(root, 'test-session', fields);
+    await assert.rejects(loadContent(root, now), /index.md/);
   }
 });
 
-test('calendar validation handles leap years and explicit offsets', () => {
-  assert.equal(timestamp('2028-02-29T13:00:00-05:00', 'event', 'date'), Date.parse('2028-02-29T18:00:00Z'));
-  for (const value of ['2027-02-29T10:00:00Z', '2026-13-01T10:00:00Z', '2026-11-11T24:00:00Z',
-    '2026-11-11T10:60:00Z', '2026-11-11T10:00:00+14:30', '2026-11-11']) {
-    assert.throws(() => timestamp(value, 'event', 'date'), /event date:/);
-  }
+test('Windows Markdown line endings and quoted timestamps are accepted', async t => {
+  const { root, file } = await fixture(t);
+  const source = await readFile(file, 'utf8');
+  await writeFile(file, `\uFEFF${source.replaceAll('\n', '\r\n')}`);
+  const result = await loadContent(root, now);
+  assert.equal(result.sessions[0].start, Date.parse(metadata.startsAt));
+  assert.match(result.sessions[0].body.agenda, /Community updates/);
 });
 
-test('metadata and Markdown render safely while publishing only referenced assets', async t => {
-  const { root, kit } = await fixture(t);
-  await mkdir(path.join(kit, 'assets'));
-  await writeFile(path.join(kit, 'assets', 'worksheet.txt'), 'Public worksheet');
-  await writeFile(path.join(kit, 'assets', 'unreferenced.txt'), 'Do not publish');
-  await writeFile(path.join(kit, 'README.md'), '## Guide\n\n<script>alert("unsafe")</script>\n\n[Worksheet](assets/worksheet.txt)\n\nLiteral {{body}}.');
-  await writeJson(path.join(kit, 'session.json'), { ...session, title: '<img src=x onerror=alert(1)>' });
+test('safe assets work in listing agendas and detail pages; unused files and raw HTML are not published', async t => {
+  const { root, directory } = await fixture(t);
+  await mkdir(path.join(directory, 'assets'));
+  await writeFile(path.join(directory, 'assets', 'public.txt'), 'Public information');
+  await writeFile(path.join(directory, 'assets', 'unused.txt'), 'Not referenced');
+  await writeSession(root, 'test-session', { ...metadata, title: '<script>unsafe</script>' },
+    `${agenda}\n[Public attachment](assets/public.txt)\n\n<script>alert("unsafe")</script>\n\nLiteral {{body}}.\n`);
   await build({ root, now });
-  const html = await readFile(path.join(root, 'dist', 'sessions', 'test-kit', 'index.html'), 'utf8');
-  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
-  assert.match(html, /&lt;script&gt;/);
-  assert.match(html, /Literal \{\{body\}\}/);
-  assert.doesNotMatch(html, /<script>alert/);
-  assert.equal(await readFile(path.join(root, 'dist', 'sessions', 'test-kit', 'assets', 'worksheet.txt'), 'utf8'), 'Public worksheet');
-  await assert.rejects(readFile(path.join(root, 'dist', 'sessions', 'test-kit', 'assets', 'unreferenced.txt')), /ENOENT/);
+  const home = await readFile(path.join(root, 'dist', 'index.html'), 'utf8');
+  assert.match(home, /href="sessions\/test-session\/assets\/public.txt"/);
+  const detail = await readFile(path.join(root, 'dist', 'sessions', 'test-session', 'index.html'), 'utf8');
+  assert.match(detail, /href="assets\/public.txt"/);
+  assert.match(detail, /&lt;script&gt;/);
+  assert.match(detail, /Literal \{\{body\}\}/);
+  assert.doesNotMatch(detail, /<script>unsafe/);
+  assert.equal(await readFile(path.join(root, 'dist', 'sessions', 'test-session', 'assets', 'public.txt'), 'utf8'), 'Public information');
+  await assert.rejects(readFile(path.join(root, 'dist', 'sessions', 'test-session', 'assets', 'unused.txt')), /ENOENT/);
 });
 
-test('Markdown unsafe links and invalid local resources fail explicitly', async t => {
-  const { root, kit } = await fixture(t);
-  await mkdir(path.join(kit, 'assets'));
-  await writeFile(path.join(kit, 'assets', 'document.pdf'), 'A document fixture, not an image');
-  for (const markdown of [
+test('unsafe links, missing assets and remote images fail explicitly', async t => {
+  const { root, directory } = await fixture(t);
+  await mkdir(path.join(directory, 'assets'));
+  await writeFile(path.join(directory, 'assets', 'document.pdf'), 'Not an image');
+  for (const resource of [
     '[unsafe](javascript:alert%281%29)', '[insecure](http://example.org)', '[escape](../guild.json)',
     '[encoded](assets/%2e%2e/guild.json)', '[missing](assets/missing.pdf)',
-    '![remote](https://example.org/image.png)', '![not an image](assets/document.pdf)', '[anchor](#not-supported)'
+    '![remote](https://example.org/image.png)', '![not an image](assets/document.pdf)'
   ]) {
-    await writeFile(path.join(kit, 'README.md'), markdown);
-    await assert.rejects(loadContent(root, now), /README.md/);
+    await writeSession(root, 'test-session', metadata, `${agenda}\n${resource}`);
+    await assert.rejects(loadContent(root, now), /index.md/);
   }
 });
 
-test('symbolic link assets cannot publish files from outside the kit', async t => {
-  const { root, kit } = await fixture(t);
-  await mkdir(path.join(kit, 'assets'));
-  try { await symlink(path.join(root, 'guild.json'), path.join(kit, 'assets', 'secret.json')); }
+test('symbolic link assets cannot expose files outside the session', async t => {
+  const { root, directory } = await fixture(t);
+  await mkdir(path.join(directory, 'assets'));
+  try { await symlink(path.join(root, 'guild.json'), path.join(directory, 'assets', 'secret.json')); }
   catch (error) {
     if (error.code === 'EPERM') { t.skip('Creating symbolic links requires Windows privileges'); return; }
     throw error;
   }
-  await writeFile(path.join(kit, 'README.md'), '[not allowed](assets/secret.json)');
+  await writeSession(root, 'test-session', metadata, `${agenda}\n[Not public](assets/secret.json)`);
   await assert.rejects(loadContent(root, now), /symbolic links are not supported/);
 });
 
-test('the documented new-kit template can be copied, developed, and scheduled', async t => {
+test('empty collections build and successful rebuilds remove obsolete kit pages and stale assets', async t => {
   const { root } = await fixture(t);
-  const destination = path.join(root, 'sessions', 'your-session');
-  await cp(path.join(repository, 'docs', 'session-template'), destination, { recursive: true });
-  let content = await loadContent(root, now);
-  assert.equal(content.sessions.find(item => item.id === 'your-session').status, 'idea');
-  const metadata = JSON.parse(await readFile(path.join(destination, 'session.json'), 'utf8'));
-  metadata.status = 'ready';
-  await writeJson(path.join(destination, 'session.json'), metadata);
-  await writeJson(path.join(root, 'events', 'test-event.json'), {
-    ...event, sessionId: 'your-session', links: { notes: 'https://example.org/notes', recording: 'https://example.org/recording' }
-  });
-  content = await build({ root, now });
-  assert.equal(content.events[0].title, metadata.title);
-  assert.match(await readFile(path.join(root, 'dist', 'index.html'), 'utf8'), /Read notes/);
+  await build({ root, now });
+  const stale = path.join(root, 'dist', 'sessions', 'old-kit');
+  await mkdir(path.join(stale, 'assets'), { recursive: true });
+  await writeFile(path.join(stale, 'README.md'), 'Old facilitator content');
+  await writeFile(path.join(stale, 'session.json'), '{}');
+  await writeFile(path.join(stale, 'assets', 'private.txt'), 'Stale content');
+  await rm(path.join(root, 'content'), { recursive: true });
+  const result = await build({ root, now });
+  assert.equal(result.sessions.length, 0);
+  const html = await readFile(path.join(root, 'dist', 'index.html'), 'utf8');
+  assert.match(html, /No upcoming sessions are announced/);
+  assert.match(html, /Past sessions will appear here/);
+  assert.doesNotMatch(html, /<form|#catalog|Session kits/);
+  await assert.rejects(readdir(path.join(root, 'dist', 'sessions')), /ENOENT/);
 });
 
-test('search combines words with exact type, status, and tag filters', () => {
-  const card = { search: 'Copilot testing Quality engineers', type: 'workshop', status: 'ready', tags: ['copilot', 'quality'] };
-  assert.equal(matches(card, { query: '  QUALITY copilot  ', type: 'workshop', status: 'ready', tag: 'quality' }), true);
-  for (const filters of [{ query: 'copilot missing' }, { type: 'discussion' }, { status: 'idea' }, { tag: 'qual' }]) {
+test('the starter can be published and receive minutes by editing only its Markdown', async t => {
+  const { root } = await fixture(t);
+  await rm(path.join(root, 'content'), { recursive: true });
+  const directory = path.join(root, 'content', 'sessions', 'new-session');
+  await cp(path.join(repository, 'docs', 'session-template'), directory, { recursive: true });
+  const before = await build({ root, now });
+  assert.equal(before.sessions[0].status, 'upcoming');
+  const file = path.join(directory, 'index.md');
+  await writeFile(file, `${await readFile(file, 'utf8')}\n## Meeting minutes\n\nPublic takeaways.\n`);
+  const after = await build({ root, now: new Date('2027-01-21T00:00:00Z') });
+  assert.equal(after.sessions[0].status, 'past');
+  assert.equal(after.sessions[0].body.hasMinutes, true);
+  assert.match(await readFile(path.join(root, 'dist', 'index.html'), 'utf8'), /new-session\/index.html#meeting-minutes/);
+});
+
+test('Guild time zones and metadata are validated even with no sessions', async t => {
+  const { root } = await fixture(t);
+  await rm(path.join(root, 'content'), { recursive: true });
+  for (const invalid of [{ ...guild, timeZone: 'Not/AZone' }, { ...guild, timeZone: '+01:00' },
+    { ...guild, links: { registration: 'http://example.org' } }, { ...guild, typo: 'unknown' }]) {
+    await writeJson(path.join(root, 'guild.json'), invalid);
+    await assert.rejects(loadContent(root, now), /guild.json/);
+  }
+});
+
+test('calendar checks accept leap days and reject impossible dates or offsets', () => {
+  assert.equal(timestamp('2028-02-29T13:00:00-05:00', 'session', 'date'), Date.parse('2028-02-29T18:00:00Z'));
+  for (const value of ['2027-02-29T10:00:00Z', '2026-13-01T10:00:00Z', '2026-11-11T24:00:00Z',
+    '2026-11-11T10:60:00Z', '2026-11-11T10:00:00+14:30', '2026-11-11']) {
+    assert.throws(() => timestamp(value, 'session', 'date'), /session date:/);
+  }
+});
+
+test('public search combines words with exact type and tag filtering', () => {
+  const card = { search: 'Copilot community questions', type: 'discussion', tags: ['copilot', 'community'] };
+  assert.equal(matches(card, { query: '  QUESTIONS copilot ', type: 'discussion', tag: 'community' }), true);
+  for (const filters of [{ query: 'copilot missing' }, { type: 'workshop' }, { tag: 'comm' }]) {
     assert.equal(matches(card, filters), false);
   }
   assert.equal(matches(card, {}), true);
